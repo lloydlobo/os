@@ -1,0 +1,23 @@
+[package]
+name = "os"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+
+# Disabling Unwinding
+#
+# This sets the panic strategy to abort for both the dev profile (used for
+# cargo build) and the release profile (used for cargo build --release). Now
+# the eh_personality language item should no longer be required.
+
+# the profile used for `cargo build`
+[profile.dev]
+panic = "abort" # disable stack unwinding on panic
+
+# the profile used for `cargo build --release`
+[profile.release]
+panic = "abort" # disable stack unwinding on panic
