@@ -1,6 +1,8 @@
 #![no_std] // Don't link the Rust standard library.
 #![no_main]
 
+mod vga_buffer;
+
 use core::panic::PanicInfo;
 
 /// This function is called on panic.
@@ -21,32 +23,36 @@ static HELLO: &[u8] = b"Hello, world!";
 /// TODO: create a VGA buffer type that encapsulates all unsafety and ensures that it is impossible to do anything wrong from the outside.
 #[no_mangle] // Prevents mangling the name of this function during compilation.
 pub extern "C" fn _start() -> ! {
-    // Cast the integer `0xb8000` into a raw pointer.
-    // - buffer is located at address 0xb8000.
-    // - each character cell consists of an ASCII byte and a color byte.
-    let vga_buffer = 0xb8000 as *mut u8;
+    vga_buffer::print_something();
 
-    for (count, &byte) in HELLO.iter().enumerate() {
-        // Use `unsafe` block because `Rust` compiler can’t prove that the raw pointers we create are valid.
-        //
-        // Turning off Rust’s safety checks allows you to do [five additional things](https://doc.rust-lang.org/stable/book/ch19-01-unsafe-rust.html#unsafe-superpowers).
-        // - Dereference a raw pointer
-        // - Call an unsafe function or method
-        // - Access or modify a mutable static variable
-        // - Implement an unsafe trait
-        // - Access fields of unions
-        unsafe {
-            // Write the string byte and the corresponding color byte. `(oxb is a light cyan)`.
-            //
-            // `fn offset(self, count: isize)` calculates the offset from a pointer.
-            // - `count` is in units of T; e.g., a `count` of 3 represents a pointer offset of `3 * size_of::<T>()` bytes.
-            *vga_buffer.offset(count as isize * 2) = byte;
-            *vga_buffer.offset(count as isize * 2 + 1) = 0xb;
-        }
-    }
+    // // Cast the integer `0xb8000` into a raw pointer.
+    // // - buffer is located at address 0xb8000.
+    // // - each character cell consists of an ASCII byte and a color byte.
+    // let vga_buffer = 0xb8000 as *mut u8;
+    //
+    // for (count, &byte) in HELLO.iter().enumerate() {
+    //     // Use `unsafe` block because `Rust` compiler can’t prove that the raw pointers we create are valid.
+    //     //
+    //     // Turning off Rust’s safety checks allows you to do [five additional things](https://doc.rust-lang.org/stable/book/ch19-01-unsafe-rust.html#unsafe-superpowers).
+    //     // - Dereference a raw pointer
+    //     // - Call an unsafe function or method
+    //     // - Access or modify a mutable static variable
+    //     // - Implement an unsafe trait
+    //     // - Access fields of unions
+    //     unsafe {
+    //         // Write the string byte and the corresponding color byte. `(oxb is a light cyan)`.
+    //         //
+    //         // `fn offset(self, count: isize)` calculates the offset from a pointer.
+    //         // - `count` is in units of T; e.g., a `count` of 3 represents a pointer offset of `3 * size_of::<T>()` bytes.
+    //         *vga_buffer.offset(count as isize * 2) = byte;
+    //         *vga_buffer.offset(count as isize * 2 + 1) = 0xb;
+    //     }
+    // }
 
     loop {}
 }
+
+///////////////////////////////////////////////////
 
 // In a typical Rust binary that links the standard library, execution starts in a C runtime
 // library called crt0 (“C runtime zero”), which sets up the environment for a C application.
