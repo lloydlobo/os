@@ -1,2 +1,8 @@
 /target
+
 .env.*
+
+**/*.rs.bk
+
+*.swp
+.vscode
