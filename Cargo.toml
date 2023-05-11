@@ -3,12 +3,24 @@ name = "os"
 version = "0.1.0"
 edition = "2018"
 
-# QEMU supports a special isa-debug-exit device, which provides an easy way to exit QEMU from the guest system. 
-# Now Bootimage maps our success exit code to exit code 0, so that cargo test correctly recognizes the
-# success case and does not count the test as failed.
+# The `isa-debug-exit` device in QEMU allows easy exit from the guest system. 
+# - Bootimage now maps success exit code to exit code 0 for proper recognition of test success by `cargo test`. 
+# - To view serial output from QEMU, use the `-serial` argument to redirect to stdout. 
+# - Since we use the `isa-debug-exit` device and serial port to report test results, the QEMU window is
+#   unnecessary and can be hidden with the `-display none` argument.
+# Configure timeout: Bootimage tool sets a default timeout of 5 minutes for each test executable due
+# to the possibility of endless loops in many situations.
 [package.metadata.bootimage]
-test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"]
-test-success-exit-code = 33                                       # (0x10 << 1) | 1
+test-args = [
+  "-device",
+  "isa-debug-exit,iobase=0xf4,iosize=0x04",
+  "-serial",
+  "stdio",
+  "-display",
+  "none",
+]
+test-success-exit-code = 33 # (0x10 << 1) | 1
+test-timeout = 300 # (in seconds)
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -32,6 +44,9 @@ spin = "0.5.2"
 # Exit Device: Instead of manually invoking the in and out assembly instructions, we use the abstractions provided
 # by the x86_64 crate.
 x86_64 = "0.14.2"
+# This crate intializes the UART and sends data over the serial port.
+uart_16550 = "0.2.0"
+
 # The one-time initialization of statics with non-const functions is a common problem in Rust.
 # Fortunately, there already exists a good solution in a crate named lazy_static. This crate
 # provides a lazy_static! macro that defines a lazily initialized static. Instead of computing its

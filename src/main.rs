@@ -13,6 +13,7 @@
 
 use core::panic::PanicInfo;
 
+mod serial;
 mod vga_buffer;
 
 // static HELLO: &[u8] = b"Hello, world!";
@@ -26,7 +27,7 @@ mod vga_buffer;
 /// TODO: create a VGA buffer type that encapsulates all unsafety and ensures that it is impossible to do anything wrong from the outside.
 #[no_mangle] // Prevents mangling the name of this function during compilation.
 pub extern "C" fn _start() -> ! {
-    println!("Hello World{}", "!"); // panic!("Some panic message");
+    println!("Hello Wörld{}", "!"); // panic!("Some panic message");
 
     #[cfg(test)]
     test_main();
@@ -52,10 +53,53 @@ pub extern "C" fn _start() -> ! {
 /// - The PanicInfo parameter contains the file and line where the panic happened and the optional panic message.
 /// - The function should never return, so it is marked as a diverging function by returning the “ never” type !.
 /// - There is not much we can do in this function for now, so we just loop indefinitely.
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
 
+    loop {}
+}
+
+/// Manually adding print statements for every test we write is cumbersome, so let’s update our
+/// test_runner to print these messages automatically.
+///
+/// The function name now includes the full path to the function, which is useful when test functions
+/// in different modules have the same name.
+pub trait Testable {
+    fn run(&self);
+}
+
+// The trick now is to implement this trait for all types T that implement the Fn() trait:
+impl<T> Testable for T
+where
+    T: Fn(),
+{
+    /// The `run` function prints the function name using `any::type_name` and adds alignment to
+    /// the [ok] messages using the \t character.
+    /// Test function is invoked through self() after printing function name because self implements
+    /// the Fn() trait.
+    /// [ok] is printed after the test function returns to indicate it did not panic.
+    fn run(&self) {
+        serial_print!("{}...\t", core::any::type_name::<T>());
+        self();
+        serial_println!("[ok]");
+    }
+}
+
+/// To exit QEMU with an error message on a panic, we can use conditional compilation to use a different
+/// panic handler in testing mode
+//
+// Now QEMU also exits for failed tests and prints a useful error message on the console
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    serial_println!("[failed]\n");
+    serial_println!("Error: {}\n", info);
+    exit_qemu(QemuExitCode::Failed);
+
+    // We still need an endless loop after the exit_qemu call because the compiler does not know that
+    // the isa-debug-exit device causes a program exit.
     loop {}
 }
 
@@ -64,20 +108,24 @@ fn panic(info: &PanicInfo) -> ! {
 /// The argument type &[&dyn Fn()] is a slice of trait object references of the Fn() trait. It is basically
 /// a list of references to types that can be called like a function. Since the function is useless
 /// for non-test runs, we use the #[cfg(test)] attribute to include it only for tests.
+//
+// ARCHIVED: `fn test_runner(tests: &[&dyn Fn()])`
 #[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
-    println!("Running {} tests", tests.len());
+fn test_runner(tests: &[&dyn Testable]) {
+    serial_println!("Running {} tests", tests.len()); // println!("Running {} tests", tests.len());
     for test in tests {
-        test();
+        test.run(); // test();
     }
     exit_qemu(QemuExitCode::Success);
 }
-
+// [`Testable`] allows us to automatically print tests so we can now remove the print statements from
+// our trivial_assertion test since they’re now printed:
+// /* serial_print!("trivial assertion... "); // print!("trivial assertion... "); */
+// ...
+// /* serial_println!("[ok]"); // println!("[ok]"); */
 #[test_case]
 fn trivial_assertion() {
-    print!("trivial assertion... ");
-    assert_eq!(1 + 1, 2);
-    println!("[ok]");
+    assert_eq!(1, 2);
 }
 
 /// To specify the exit status, we create a [`QemuExitCode`] enum. The idea is to exit with the success
@@ -279,3 +327,42 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
 //
 // Together with the device name (isa-debug-exit), we pass the two parameters iobase and iosize that
 // specify the I/O port through which the device can be reached from our kernel.
+//
+// ## Serial
+//
+// The `serial` module provides a way to send data from the kernel to the host system using the 16550
+// UART interface. It allows printing to the serial interface for testing purposes, and also provides
+// macros to print to the interface, similar to the VGA buffer.
+// The `lazy_static` and `spin` crates are used to create a static writer instance.
+// The `_print` function is used to print formatted strings to the serial port, and the
+// `serial_print!` and `serial_println!` macros allow passing token trees as arguments to generate
+// formatted strings. The module uses the `fmt::Write` trait to implement printing to the serial port.
+//
+//
+// ## QEMU Arguments
+//
+// To see the serial output from QEMU, we need to use the -serial argument to redirect the output to
+// stdout: # in Cargo.toml
+// [package.metadata.bootimage]
+// test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio"]
+// However, when a test fails, we still see the output inside QEMU because our panic handler still uses
+// println. To simulate this, we can change the assertion in our trivial_assertion test to
+// assert_eq!(0, 1):
+//
+// [Print an Error Message on Panic](https://os.phil-opp.com/testing/#print-an-error-message-on-panic)
+//
+// To exit QEMU with an error message on a panic, we can use conditional compilation to use a different
+// panic handler in testing mode
+//
+// ## [🔗 Hiding QEMU](https://os.phil-opp.com/testing/#hiding-qemu)
+//
+// Since we report out the complete test results using the isa-debug-exit device and the serial port
+// , we don’t need the QEMU window anymore. We can hide it by passing the -display none argument to
+// QEMU: # in Cargo.toml
+// [package.metadata.bootimage]
+// test-args = [ "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
+//     "-display", "none"
+// ]
+// Now QEMU runs completely in the background and no window gets opened anymore. This is not only less
+// annoying, but also allows our test framework to run in environments without a graphical user interface
+// , such as CI services or SSH connections.
