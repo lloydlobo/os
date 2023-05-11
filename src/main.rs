@@ -1,53 +1,60 @@
 #![no_std] // Don't link the Rust standard library.
 #![no_main]
 
-mod vga_buffer;
+// Turning off Rust’s safety checks allows you to do [five additional things](https://doc.rust-lang.org/stable/book/ch19-01-unsafe-rust.html#unsafe-superpowers).
+// - Dereference a raw pointer
+// - Call an unsafe function or method
+// - Access or modify a mutable static variable
+// - Implement an unsafe trait
+// - Access fields of unions
 
 use core::panic::PanicInfo;
 
-/// This function is called on panic.
-///
-/// - The PanicInfo parameter contains the file and line where the panic happened and the optional panic message.
-/// - The function should never return, so it is marked as a diverging function by returning the “never” type !.
-/// - There is not much we can do in this function for now, so we just loop indefinitely.
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
-}
+mod vga_buffer;
 
-static HELLO: &[u8] = b"Hello, world!";
+// static HELLO: &[u8] = b"Hello, world!";
 
-/// - We disable name mangling to ensure that the Rust compiler really outputs a function with the name `_start`.
-/// - Name of function is _start as this is the default entry point name for most systems.
+/// - We disable name mangling to ensure that the Rust compiler really outputs a function with the
+///   name `_start`.
+/// - Name of function is _start as this is the default entry point name for most
+///   systems.
 /// - The ! return type means that the function is diverging, i.e. not allowed to ever return.
+///
 /// TODO: create a VGA buffer type that encapsulates all unsafety and ensures that it is impossible to do anything wrong from the outside.
 #[no_mangle] // Prevents mangling the name of this function during compilation.
 pub extern "C" fn _start() -> ! {
-    vga_buffer::print_something();
+    println!("Hello World{}", "!");
 
-    // // Cast the integer `0xb8000` into a raw pointer.
-    // // - buffer is located at address 0xb8000.
-    // // - each character cell consists of an ASCII byte and a color byte.
+    loop {}
+
+    // use core::fmt::Write;
+    // vga_buffer::WRITER.lock().write_str("Hello again").unwrap(); // vga_buffer::print_something();
+    // write!(vga_buffer::WRITER.lock(), " some numbers: {} {}", 42, 1.337).unwrap();
+    // loop {}
+
+    // // Cast the integer `0xb8000` into a raw pointer. buffer is located at address 0xb8000.
+    // // Each character cell consists of an ASCII byte and a color byte.
     // let vga_buffer = 0xb8000 as *mut u8;
-    //
     // for (count, &byte) in HELLO.iter().enumerate() {
-    //     // Use `unsafe` block because `Rust` compiler can’t prove that the raw pointers we create are valid.
-    //     //
-    //     // Turning off Rust’s safety checks allows you to do [five additional things](https://doc.rust-lang.org/stable/book/ch19-01-unsafe-rust.html#unsafe-superpowers).
-    //     // - Dereference a raw pointer
-    //     // - Call an unsafe function or method
-    //     // - Access or modify a mutable static variable
-    //     // - Implement an unsafe trait
-    //     // - Access fields of unions
     //     unsafe {
     //         // Write the string byte and the corresponding color byte. `(oxb is a light cyan)`.
-    //         //
-    //         // `fn offset(self, count: isize)` calculates the offset from a pointer.
-    //         // - `count` is in units of T; e.g., a `count` of 3 represents a pointer offset of `3 * size_of::<T>()` bytes.
     //         *vga_buffer.offset(count as isize * 2) = byte;
     //         *vga_buffer.offset(count as isize * 2 + 1) = 0xb;
-    //     }
+    //     } // Use `unsafe` block because `Rust` compiler can’t prove that the raw pointers we create are valid.
     // }
+    // loop {}
+}
+
+/// This function is called on panic.
+///
+/// - The PanicInfo parameter contains the file and line where the panic happened and the optional
+///   panic message.
+/// - The function should never return, so it is marked as a diverging function by returning the “
+///   never” type !.
+/// - There is not much we can do in this function for now, so we just loop indefinitely.
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
 
     loop {}
 }
@@ -152,3 +159,13 @@ pub extern "C" fn _start() -> ! {
 //     RHEL/CentOS: yum install qemu-kvm
 //     SUSE: zypper install qemu
 //
+// # VGA Text Mode [🔗 Summary](https://os.phil-opp.com/vga-text-mode/#summary)
+//
+// In this post, we learned about the structure of the VGA text buffer and how it can be written
+// through the memory mapping at address 0xb8000. We created a Rust module that encapsulates the
+// unsafety of writing to this memory-mapped buffer and presents a safe and convenient interface to
+// the outside.
+//
+// Thanks to cargo, we also saw how easy it is to add dependencies on third-party libraries. The two
+// dependencies that we added, lazy_static and spin, are very useful in OS development and we will
+// use them in more places in future posts.

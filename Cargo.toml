@@ -6,26 +6,32 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#
-# Adding the bootloader as a dependency is not enough to actually create a
-# bootable disk image. The problem is that we need to link our kernel with the
-# bootloader after compilation, but cargo has no support for post-build
-# scripts.
-#
-# To solve this problem, a tool named bootimage exists that first compiles the
-# kernel and bootloader, and then links them together to create a bootable disk
-# image. For running bootimage and building the bootloader, you need to have
-# the llvm-tools-preview rustup component installed. You can do so by executing
-# `rustup component add llvm-tools-preview`.
-#
-# After installing bootimage and adding the llvm-tools-preview component, we
-# can create a bootable disk image by executing:
-#
-# > cargo bootimage
-# Created bootimage for 'os' as bootable disk image named bootimage-blog_os.bin in your target/x86_64-blog_os/debug directory. 
-#
-bootloader = "0.9.23"
+# Adding the bootloader as a dependency is not enough to actually create a bootable disk image. 
+# The problem is that we need to link our kernel with the bootloader after compilation, but cargo 
+# has no support for post-build scripts. To solve this problem, a tool named bootimage exists 
+# that first co mpiles the kernel and bootloader, and then links them together to create a 
+# bootable disk image. For running bootimage and building the bootloader, you need to have the llvm
+# -tools preview rustup component installed. 
+# You can do so by executing `rustup component add llvm- tools preview`. After installing 
+# bootimage and adding the llvm-tools-preview component, we can create a bootable disk image by 
+# executing: > cargo bootimage # Created bootimage for 'os' as bootable disk image named bootimage-
+# blog_os.bin in your target/x86_64-blog_os/debug directory.
+bootloader = "0.9.8"
+volatile = "0.2.6"
+# basic kind of mutex in computer science that requires no operating system features: the spinlock.
+# Instead of blocking, the threads simply try to lock it again and again in a tight loop, thus
+# burning CPU time until the mutex is free again.
+spin = "0.5.2"
 
+# The one-time initialization of statics with non-const functions is a common problem in Rust.
+# Fortunately, there already exists a good solution in a crate named lazy_static. This crate
+# provides a lazy_static! macro that defines a lazily initialized static. Instead of computing its
+# value at compile time, the static lazily initializes itself when accessed for the first time.
+# Thus, the initialization happens at runtime, so arbitrarily complex initialization code is
+# possible. We need the spin_no_std feature, since we don’t link the standard library.
+[dependencies.lazy_static]
+version = "1.0"
+features = ["spin_no_std"]
 
 # Disabling Unwinding
 #
